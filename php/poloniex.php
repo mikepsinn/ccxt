@@ -627,7 +627,7 @@ class poloniex extends Exchange {
         $response = $this->$method (array_merge (array (
             'currencyPair' => $market['id'],
             'rate' => $this->price_to_precision($symbol, $price),
-            'amount' => $this->amount_to_precision($symbol, $amount),
+            'amount' => $amountToPrecision,
         ), $params));
         $timestamp = $this->milliseconds ();
         $order = $this->parse_order(array_merge (array (
