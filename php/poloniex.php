@@ -622,6 +622,8 @@ class poloniex extends Exchange {
         $market = $this->market ($symbol);
         $price = floatval ($price);
         $amount = floatval ($amount);
+        $amountToPrecision = $this->amount_to_precision($symbol, $amount);
+        if(!$amountToPrecision){$amountToPrecision = $amount;} // Sometimes this gets changed to null for some reason
         $response = $this->$method (array_merge (array (
             'currencyPair' => $market['id'],
             'rate' => $this->price_to_precision($symbol, $price),
