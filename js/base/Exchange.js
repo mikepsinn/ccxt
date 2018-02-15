@@ -121,8 +121,8 @@ module.exports = class Exchange {
                 'funding': {
                     'tierBased': undefined,
                     'percentage': undefined,
-                    'withdraw': undefined,
-                    'deposit': undefined,
+                    'withdraw': {},
+                    'deposit': {},
                 },
             },
             'parseJsonResponse': true, // whether a reply is required to be in JSON or not
@@ -195,6 +195,7 @@ module.exports = class Exchange {
 
         this.last_http_response = undefined
         this.last_json_response = undefined
+        this.last_response_headers = undefined
 
         this.arrayConcat = (a, b) => a.concat (b)
 
@@ -276,7 +277,7 @@ module.exports = class Exchange {
         this.executeRestRequest = function (url, method = 'GET', headers = undefined, body = undefined) {
 
             let promise =
-                fetchImplementation (url, { method, headers, body, 'agent': this.tunnelAgent || null, timeout: this.timeout })
+                fetchImplementation (url, { method, headers, body, 'agent': this.agent || null, timeout: this.timeout })
                     .catch (e => {
                         if (isNode)
                             throw new ExchangeNotAvailable ([ this.id, method, url, e.type, e.message ].join (' '))
@@ -459,13 +460,19 @@ module.exports = class Exchange {
             let jsonRequired = this.parseJsonResponse && !this.skipJsonOnStatusCodes.includes (response.status)
             let json = jsonRequired ? this.parseJson (response, responseBody, url, method) : undefined
 
-            if (this.verbose)
-                console.log ("handleRestResponse:\n", this.id, method, url, response.status, response.statusText, "\nResponse:\n", requestHeaders, "\n", responseBody, "\n")
+            let responseHeaders = {}
+            response.headers.forEach ((value, key) => {
+                responseHeaders[key] = value;
+            })
 
+            this.last_response_headers = responseHeaders
             this.last_http_response = responseBody // FIXME: for those classes that haven't switched to handleErrors yet
             this.last_json_response = json         // FIXME: for those classes that haven't switched to handleErrors yet
 
-            const args = [ response.status, response.statusText, url, method, requestHeaders, responseBody, json ]
+            if (this.verbose)
+                console.log ("handleRestResponse:\n", this.id, method, url, response.status, response.statusText, "\nResponse:\n", responseHeaders, "\n", responseBody, "\n")
+
+            const args = [ response.status, response.statusText, url, method, responseHeaders, responseBody, json ]
             this.handleErrors (...args)
             this.defaultErrorHandler (response, responseBody, url, method)
 
@@ -679,11 +686,11 @@ module.exports = class Exchange {
         return Object.values (this.orders).filter (order => (order['status'] === 'open')).reduce ((total, order) => {
             let symbol = order['symbol'];
             let market = this.markets[symbol];
-            let amount = order['remaining']
+            let remaining = order['remaining']
             if (currency === market['base'] && order['side'] === 'sell') {
-                return total + amount
+                return total + remaining
             } else if (currency === market['quote'] && order['side'] === 'buy') {
-                return total + (order['cost'] || (order['price'] * amount))
+                return total + (order['price'] * remaining)
             } else {
                 return total
             }
@@ -749,7 +756,7 @@ module.exports = class Exchange {
     }
 
     parseTrades (trades, market = undefined, since = undefined, limit = undefined) {
-        let result = Object.values (trades).map (trade => this.parseTrade (trade, market))
+        let result = Object.values (trades || []).map (trade => this.parseTrade (trade, market))
         result = sortBy (result, 'timestamp', true)
         return this.filterBySinceLimit (result, since, limit)
     }

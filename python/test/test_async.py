@@ -2,10 +2,10 @@
 
 import argparse
 import asyncio
+import json
 import os
 import sys
-import json
-import time
+import time  # noqa: F401
 from os import _exit
 from traceback import format_tb
 
@@ -113,7 +113,7 @@ sys.excepthook = handle_all_unhandled_exceptions
 async def test_order_book(exchange, symbol):
     if exchange.has['fetchOrderBook']:
         delay = int(exchange.rateLimit / 1000)
-        time.sleep(delay)
+        await asyncio.sleep(delay)
         # dump(green(exchange.id), green(symbol), 'fetching order book...')
         orderbook = await exchange.fetch_order_book(symbol)
         dump(
@@ -134,7 +134,7 @@ async def test_order_book(exchange, symbol):
 async def test_ohlcv(exchange, symbol):
     if exchange.has['fetchOHLCV']:
         delay = int(exchange.rateLimit / 1000)
-        time.sleep(delay)
+        await asyncio.sleep(delay)
         ohlcvs = await exchange.fetch_ohlcv(symbol)
         dump(green(exchange.id), 'fetched', green(len(ohlcvs)), 'OHLCVs')
     else:
@@ -146,7 +146,7 @@ async def test_ohlcv(exchange, symbol):
 async def test_tickers(exchange, symbol):
     if exchange.has['fetchTickers']:
         delay = int(exchange.rateLimit / 1000)
-        time.sleep(delay)
+        await asyncio.sleep(delay)
         tickers = None
         try:
             # dump(green(exchange.id), 'fetching all tickers at once...')
@@ -202,7 +202,7 @@ async def test_l2_order_books_async(exchange):
 async def test_ticker(exchange, symbol):
     if exchange.has['fetchTicker']:
         delay = int(exchange.rateLimit / 1000)
-        time.sleep(delay)
+        await asyncio.sleep(delay)
         # dump(green(exchange.id), green(symbol), 'fetching ticker...')
         ticker = await exchange.fetch_ticker(symbol)
         dump(
@@ -224,7 +224,7 @@ async def test_ticker(exchange, symbol):
 async def test_trades(exchange, symbol):
     if exchange.has['fetchTrades']:
         delay = int(exchange.rateLimit / 1000)
-        time.sleep(delay)
+        await asyncio.sleep(delay)
         # dump(green(exchange.id), green(symbol), 'fetching trades...')
         trades = await exchange.fetch_trades(symbol)
         dump(green(exchange.id), green(symbol), 'fetched', green(len(list(trades))), 'trades')
@@ -299,7 +299,7 @@ async def test_exchange(exchange):
     await exchange.fetch_balance()
     dump(green(exchange.id), 'fetched balance')
 
-    time.sleep(exchange.rateLimit / 1000)
+    await asyncio.sleep(exchange.rateLimit / 1000)
 
     if exchange.has['fetchOrders']:
         try:
@@ -335,11 +335,11 @@ async def test_exchange(exchange):
 # ------------------------------------------------------------------------------
 
 
-async def try_all_proxies(exchange, proxies):
+async def try_all_proxies(exchange, proxies=['']):
     current_proxy = 0
     max_retries = len(proxies)
     # a special case for ccex
-    if exchange.id == 'ccex':
+    if exchange.id == 'ccex' and max_retries > 1:
         current_proxy = 1
     for num_retries in range(0, max_retries):
         try:
@@ -348,7 +348,6 @@ async def try_all_proxies(exchange, proxies):
             current_proxy = (current_proxy + 1) % len(proxies)
             await load_exchange(exchange)
             await test_exchange(exchange)
-            break
         except ccxt.RequestTimeout as e:
             dump_error(yellow('[' + type(e).__name__ + ']'), str(e)[0:200])
         except ccxt.NotSupported as e:
@@ -361,7 +360,11 @@ async def try_all_proxies(exchange, proxies):
             dump_error(yellow('[' + type(e).__name__ + ']'), str(e)[0:200])
         except ccxt.ExchangeError as e:
             dump_error(yellow('[' + type(e).__name__ + ']'), str(e.args)[0:200])
-
+        else:
+            # no exception
+            return True
+    # exception
+    return False
 # ------------------------------------------------------------------------------
 
 
@@ -372,8 +375,9 @@ proxies = [
 ]
 
 # prefer local testing keys to global keys
-keys_global = './keys.json'
-keys_local = './keys.local.json'
+keys_folder = os.path.dirname(root)
+keys_global = os.path.join(keys_folder, 'keys.json')
+keys_local = os.path.join(keys_folder, 'keys.local.json')
 keys_file = keys_local if os.path.exists(keys_local) else keys_global
 
 # load the api keys from config
@@ -435,4 +439,5 @@ async def main():
 # ------------------------------------------------------------------------------
 
 
-asyncio.get_event_loop().run_until_complete(main())
+if __name__ == '__main__':
+    asyncio.get_event_loop().run_until_complete(main())
