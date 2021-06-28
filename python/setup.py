@@ -66,7 +66,7 @@ setup(
     install_requires=[
         'setuptools==38.5.1',
         'certifi==2018.1.18',
-        'requests==2.18.4'
+        'requests==2.20.0'
     ],
 
     extras_require={
